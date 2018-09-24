@@ -1,0 +1,40 @@
+"""Authorization token handling."""
+
+from flask import current_app, request, g
+import jwt
+from os import getenv
+
+from .exceptions import HTTPError
+from .utils import fetch_public_key
+
+
+def decode_token():
+    """Decode the authorization token read from the request header."""
+    token = request.headers.get('f8a-secret-key')
+    if token is None:
+        return {}
+
+    secret = getenv('F8A_CHE_AUTH_SECRET')
+    if token != secret:
+        raise jwt.InvalidTokenError('Invalid secret provided.')
+
+    return token
+
+
+def login_required(view):
+    """Check if the login is required and if the user can be authorized."""
+    # NOTE: the actual authentication 401 failures are commented out for now and will be
+    # uncommented as soon as we know everything works fine; right now this is purely for
+    # being able to tail logs and see if stuff is going fine
+    def wrapper(*args, **kwargs):
+        lgr = current_app.logger
+        decoded = decode_token()
+        if not decoded:
+            lgr.exception('The received request is unauthorized.')
+            raise HTTPError(401, 'Authentication failed')
+
+        lgr.info('The received request has been successfully authenticated.')
+        return view(*args, **kwargs)
+
+    return wrapper
+
